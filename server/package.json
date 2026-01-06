@@ -1,5 +1,5 @@
 {
-  "name": "topdown-server",
+  "name": "topdown-pvp",
   "version": "1.0.0",
   "main": "index.js",
   "dependencies": {
