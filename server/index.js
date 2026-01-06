@@ -1,9 +1,11 @@
 const express = require("express");
 const app = express();
 const http = require("http").createServer(app);
-const io = require("socket.io")(http, {
-  cors: { origin: "*" }
-});
+const { Server } = require("socket.io");
+
+const io = new Server(http);
+
+app.use(express.static("public"));
 
 let players = {};
 
@@ -17,13 +19,13 @@ io.on("connection", socket => {
   };
 
   socket.emit("init", players[socket.id]);
-  io.emit("update", players);
+  io.emit("state", players);
 
-  socket.on("move", data => {
+  socket.on("move", p => {
     if (!players[socket.id]) return;
-    players[socket.id].x = data.x;
-    players[socket.id].y = data.y;
-    io.emit("update", players);
+    players[socket.id].x = p.x;
+    players[socket.id].y = p.y;
+    io.emit("state", players);
   });
 
   socket.on("attack", data => {
@@ -32,22 +34,22 @@ io.on("connection", socket => {
 
       let dx = players[id].x - data.x;
       let dy = players[id].y - data.y;
-      let dist = Math.sqrt(dx*dx + dy*dy);
+      let dist = Math.hypot(dx, dy);
 
-      if (
-        (data.weapon === "sword" && dist < 40) ||
-        (data.weapon === "gun" && dist < 200)
-      ) {
-        players[id].hp -= data.weapon === "sword" ? 15 : 8;
+      let range = data.weapon === "gun" ? 200 : 40;
+      let dmg = data.weapon === "gun" ? 8 : 15;
+
+      if (dist < range) {
+        players[id].hp -= dmg;
         if (players[id].hp <= 0) {
           players[id].hp = 100;
           players[id].x = Math.random() * 700 + 50;
           players[id].y = Math.random() * 500 + 50;
         }
+        io.emit("blood", players[id]);
       }
     }
-    io.emit("update", players);
-    io.emit("blood", data);
+    io.emit("state", players);
   });
 
   socket.on("weapon", w => {
@@ -56,10 +58,9 @@ io.on("connection", socket => {
 
   socket.on("disconnect", () => {
     delete players[socket.id];
-    io.emit("update", players);
+    io.emit("state", players);
   });
 });
 
-http.listen(process.env.PORT || 3000, () => {
-  console.log("Server läuft");
-});
+const PORT = process.env.PORT || 3000;
+http.listen(PORT, () => console.log("Server läuft auf", PORT));
